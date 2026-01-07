@@ -27,7 +27,145 @@ const { title } = Astro.props;
 			<slot />
 		</div>
 		
-		<Footer /></body>
+		<Footer />
+	</body>
+	<script is:inline>
+		(function() {
+			const canvas = document.createElement('canvas');
+			const ctx = canvas.getContext('2d');
+			
+			const config = {
+				colors: ['#ff4444', '#ffae00', '#edba3a'], // 红、橙、金
+				count: 150,                  // 背景静止火花数
+				range: 100,                  // 准星感应范围
+				trailCount: 20               // 鼠标拖尾粒子密度
+			};
+
+			canvas.style.cssText = "position:fixed;top:0;left:0;z-index:-1;pointer-events:none;";
+			document.body.appendChild(canvas);
+
+			let width, height, sparks = [], trails = [];
+			const mouse = { x: null, y: null };
+
+			function init() {
+				width = canvas.width = window.innerWidth;
+				height = canvas.height = window.innerHeight;
+				sparks = [];
+				for (let i = 0; i < config.count; i++) {
+					sparks.push({
+						x: Math.random() * width,
+						y: Math.random() * height,
+						size: Math.random() * 4.5,
+						color: config.colors[Math.floor(Math.random() * config.colors.length)],
+						opacity: Math.random() * 0.4 + 0.1,
+						speed: Math.random() * 0.2
+					});
+				}
+			}
+
+			window.addEventListener('resize', init);
+			window.addEventListener('mousemove', e => {
+				mouse.x = e.clientX;
+				mouse.y = e.clientY;
+				
+				// 鼠标移动时产生新的拖尾粒子
+				for (let i = 0; i < 2; i++) { // 每次移动产生2个粒子
+					trails.push({
+						x: mouse.x,
+						y: mouse.y,
+						vx: (Math.random() - 0.5) * 2,
+						vy: (Math.random() - 0.5) * 2,
+						size: Math.random() * 3 + 1,
+						life: 1.0, // 初始生命值
+						color: config.colors[Math.floor(Math.random() * config.colors.length)]
+					});
+				}
+			});
+
+			init();
+
+			function draw() {
+				ctx.clearRect(0, 0, width, height);
+
+				// 1. 绘制背景静止火花
+				sparks.forEach(s => {
+					s.y -= s.speed; // 缓慢上升
+					if (s.y < 0) s.y = height;
+
+					let drawOpacity = s.opacity;
+					let drawSize = s.size;
+
+					if (mouse.x !== null) {
+						const dx = s.x - mouse.x;
+						const dy = s.y - mouse.y;
+						const dist = Math.sqrt(dx * dx + dy * dy);
+						if (dist < config.range) {
+							const r = 1 - dist / config.range;
+							drawOpacity = Math.min(1.0, s.opacity + r * 0.8);
+							drawSize = s.size * (1 + r * 2);
+						}
+					}
+
+					ctx.fillStyle = s.color;
+					ctx.globalAlpha = drawOpacity;
+					ctx.beginPath();
+					const spikes = 5; // 锯齿的数量
+					const outerRadius = drawSize;
+					const innerRadius = drawSize * 0.5; // 内部缩进，值越小锯齿越尖锐
+					let rot = Math.PI / 2 * 3;
+					let x = s.x;
+					let y = s.y;
+					let step = Math.PI / spikes;
+
+					ctx.beginPath();
+					ctx.moveTo(s.x, s.y - outerRadius);
+
+					for (let i = 0; i < spikes; i++) {
+						// 绘制外顶点
+						x = s.x + Math.cos(rot) * outerRadius;
+						y = s.y + Math.sin(rot) * outerRadius;
+						ctx.lineTo(x, y);
+						rot += step;
+
+						// 绘制内缩点（加入 Math.random() 可以让每个锯齿都不一样，更像碎屑）
+						x = s.x + Math.cos(rot) * innerRadius;
+						y = s.y + Math.sin(rot) * innerRadius;
+						ctx.lineTo(x, y);
+						rot += step;
+					}
+					ctx.lineTo(s.x, s.y - outerRadius);
+					ctx.closePath();
+					ctx.fill();
+				});
+
+				// 2. 绘制鼠标溅射拖尾 (不再是线，是动态消失的粒子)
+				for (let i = trails.length - 1; i >= 0; i--) {
+					const t = trails[i];
+					t.x += t.vx;
+					t.y += t.vy;
+					t.life -= 0.02; // 生命周期衰减
+					t.size *= 0.96; // 逐渐变小
+
+					if (t.life <= 0) {
+						trails.splice(i, 1);
+						continue;
+					}
+
+					ctx.globalAlpha = t.life;
+					ctx.fillStyle = t.color;
+					ctx.shadowBlur = 5;
+					ctx.shadowColor = t.color;
+					ctx.beginPath();
+					ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+					ctx.fill();
+				}
+				
+				ctx.shadowBlur = 0;
+				ctx.globalAlpha = 1;
+				requestAnimationFrame(draw);
+			}
+			draw();
+		})();</script>
 </html>
 
 <style is:global>
