@@ -17,6 +17,8 @@ const { title } = Astro.props;
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<title>{title}</title>
 	</head>
+	<div class="cursor-dot"></div>
+	<div class="cursor-outline"></div>
 	<body>
 		<Header />
 		
@@ -31,6 +33,13 @@ const { title } = Astro.props;
     html, body {
         margin: 0;
         height: 100%;
+		cursor: none;
+		/* 禁止用户意外选中文本（这样就不会出现光标） */
+		user-select: none;
+		/* 针对不同浏览器的兼容性 */
+		-webkit-user-select: none;
+		/* 特别是针对输入焦点的清除 */
+		caret-color: transparent;
     }
     body {
         display: flex;
@@ -43,4 +52,122 @@ const { title } = Astro.props;
         padding-top: 70px;
         flex: 1 0 auto;
     }
+	/* 隐藏原生鼠标 */
+	html, body {
+		cursor: none;
+	}
+
+	/* 强制所有可点击元素不显示默认鼠标样式 */
+	a, button, select, .social-btn {
+		cursor: none !important;
+	}
+
+	/* 中心准星小+号 */
+	.cursor-dot {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 12px;
+		height: 12px;
+		transform: translate(-50%, -50%);
+		z-index: 9999;
+		pointer-events: none;
+	}
+
+	/* 用伪元素画两条垂直交汇的线 */
+	.cursor-dot::before,
+	.cursor-dot::after {
+		content: '';
+		position: absolute;
+		background-color: var(--dot-color, #ff4444); /* 默认红色 */
+		transition: background-color 0.2s ease;
+	}
+
+	/* 水平线 */
+	.cursor-dot::before {
+		top: 5px;
+		left: 0;
+		width: 12px;
+		height: 2px;
+	}
+
+	/* 垂直线 */
+	.cursor-dot::after {
+		top: 0;
+		left: 5px;
+		width: 2px;
+		height: 12px;
+	}
+
+	/* 外部瞄准环 */
+	.cursor-outline {
+		width: 35px;
+		height: 35px;
+		border: 2px solid rgba(237, 186, 58, 0.5);
+		position: fixed;
+		top: 0;
+		left: 0;
+		transform: translate(-50%, -50%);
+		border-radius: 50%;
+		z-index: 9998;
+		pointer-events: none;
+		/* 增加平滑感 */
+		transition: width 0.2s, height 0.2s, background-color 0.2s;
+	}
 </style>
+<script>
+    // 获取准星和外环元素，并进行类型断言
+    const dot = document.querySelector(".cursor-dot") as HTMLElement;
+    const outline = document.querySelector(".cursor-outline") as HTMLElement;
+
+    if (dot && outline) {
+        // 1. 鼠标移动监听
+        window.addEventListener("mousemove", (e) => {
+            const posX = e.clientX;
+            const posY = e.clientY;
+            
+            // 十字准星直接跟随
+            dot.style.left = `${posX}px`;
+            dot.style.top = `${posY}px`;
+
+            // 外环平滑跟随
+            outline.animate({
+                left: `${posX}px`,
+                top: `${posY}px`
+            }, { duration: 500, fill: "forwards" });
+
+            // 2. 目标锁定检测
+            const target = e.target as HTMLElement;
+            // 检查是否为链接、按钮、下拉菜单或特定类名
+            const isClickable = target.closest('a') || 
+                                target.closest('button') || 
+                                target.closest('select') || 
+                                target.classList.contains('social-btn');
+
+            if (isClickable) {
+                // 仅中心十字变绿
+                document.documentElement.style.setProperty('--dot-color', '#00ff00');
+            } else {
+                // 恢复红色
+                document.documentElement.style.setProperty('--dot-color', '#ff4444');
+            }
+        });
+
+        // 3. 点击交互逻辑
+        window.addEventListener("mousedown", () => {
+            // 点击时：内部填充半透明金色 (rgba 237, 186, 58, 0.2)
+            outline.style.backgroundColor = "rgba(237, 186, 58, 0.2)"; 
+            // 点击时略微收缩（比如缩到 25px，或者保持 35px 视你喜好，这里设为 28px 增加动感）
+            outline.style.width = "28px"; 
+            outline.style.height = "28px";
+        });
+        
+        window.addEventListener("mouseup", () => {
+            // 松开时：恢复透明背景
+            outline.style.backgroundColor = "transparent";
+            // 回到你要求的 35px
+            outline.style.width = "35px"; 
+            outline.style.height = "35px";
+        });
+    }
+</script>
