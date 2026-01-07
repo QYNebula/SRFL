@@ -25,8 +25,8 @@ const navItems = [
     </nav>
 
     <div class="lang-selector">
-      <select onchange="location = this.value;">
-        <option value="/en/" selected={currentLang === 'en'}>English</option>
+      <select id="langSelect">
+        <option value="/en/">English</option>
         <option value="/">Français</option>
       </select>
     </div>
@@ -101,3 +101,22 @@ const navItems = [
     cursor: pointer;
   }
 </style>
+
+<script>
+  const select = document.getElementById('langSelect');
+  if (select) {
+    select.addEventListener('change', (e) => {
+      // 获取选中的路径并跳转
+      const target = (e.target as HTMLSelectElement).value;
+      window.location.href = target;
+    });
+
+    // 自动检测当前路径，让下拉菜单显示正确的语言
+    const currentPath = window.location.pathname;
+    if (currentPath.includes('/en')) {
+        (select as HTMLSelectElement).value = '/en/';
+    } else {
+        (select as HTMLSelectElement).value = '/';
+    }
+  }
+</script>

@@ -2,9 +2,109 @@
 import Layout from '../../layouts/Layout.astro';
 ---
 
-<Layout title="SRFL | Home">
-    <div style="height: 200vh; padding: 2rem;">
-        <h1>Home Page Test</h1>
-        <p>This is our new official site!</p>
+<Layout title="SRFL SQUADRON | Official Home">
+  <section class="hero-section">
+    <div class="hero-main">
+      <img src="/images/logo.png" alt="SRFL Logo" class="main-logo" />
+      <h1 class="full-name">Les Soldats Résistants Français Libres</h1>
+	  <p class="translation">"The Free French Resistant Soldiers"</p>
+      <p class="join-us">READY TO JOIN THE BATTLE?</p>
     </div>
+
+    <div class="social-links">
+      <a href="https://discord.gg/8ttbRFVv68" target="_blank" class="social-btn discord">
+        <span class="btn-text">JOIN OUR DISCORD</span>
+      </a>
+      <a href="https://youtube.com/@srflresistantsfrancais?si=lNLwcAh4DV6iN1hh" target="_blank" class="social-btn youtube">
+        <span class="btn-text">YOUTUBE CHANNEL</span>
+      </a>
+      <a href="https://www.warthunder.com/" target="_blank" class="social-btn official">
+        <span class="btn-text">WAR THUNDER OFFICIAL</span>
+      </a>
+    </div>
+  </section>
 </Layout>
+
+<style>
+  .hero-section {
+    min-height: calc(100vh - 70px); /* 减去导航栏高度 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000000; /* 全黑背景 */
+    padding: 2rem;
+  }
+
+  /* 中央展示区 */
+  .hero-main {
+    text-align: center;
+    margin-bottom: 4rem;
+  }
+
+  .main-logo {
+    width: 280px; /* 大队徽尺寸 */
+    height: auto;
+    filter: drop-shadow(0 0 20px rgba(237, 186, 58, 0.3)); /* 淡淡的金色光晕 */
+    margin-bottom: 1.5rem;
+  }
+
+  .full-name {
+    font-size: 2.2rem; /* 从 3.5rem 调小，因为名字太长了 */
+    font-weight: 800;
+    color: #edba3a;
+    letter-spacing: 2px;
+    margin: 1rem 0 0.2rem 0;
+    text-transform: uppercase;
+  }
+
+  .translation {
+    font-size: 1rem;
+    color: #aaa;
+    font-style: italic;
+    margin-bottom: 1.5rem;
+    letter-spacing: 1px;
+  }
+
+  .join-us {
+    font-size: 1.2rem;
+    color: #888;
+    letter-spacing: 2px;
+    margin-top: 0.5rem;
+  }
+
+  /* 社交链接区域 */
+  .social-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    text-decoration: none;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+
+  /* 悬停效果：增加金属感和颜色边框 */
+  .social-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    border-color: #edba3a;
+    box-shadow: 0 5px 15px rgba(237, 186, 58, 0.2);
+  }
+
+  .discord:hover { border-color: #5865F2; }
+  .youtube:hover { border-color: #FF0000; }
+</style>
