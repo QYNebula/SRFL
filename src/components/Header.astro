@@ -1,0 +1,103 @@
+---
+// src/components/Header.astro
+// 接收当前语言的参数，方便以后切换
+const { currentLang = 'en' } = Astro.props;
+
+// 导航链接配置
+const navItems = [
+  { name: 'Home', href: '/en/' },
+  { name: 'Staff', href: '/en/staff/' },
+  { name: 'SQB', href: '/en/sqb/' },
+];
+---
+
+<header class="nav-container">
+  <div class="nav-content">
+    <a href="/en/" class="logo-area">
+      <img src="/images/logo.png" alt="SRFL Logo" class="nav-logo" />
+      <span class="squadron-name">SRFL SQUADRON</span>
+    </a>
+
+    <nav class="nav-links">
+      {navItems.map(item => (
+        <a href={item.href}>{item.name}</a>
+      ))}
+    </nav>
+
+    <div class="lang-selector">
+      <select onchange="location = this.value;">
+        <option value="/en/" selected={currentLang === 'en'}>English</option>
+        <option value="/">Français</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<style>
+  .nav-container {
+    width: 100%;
+    background: rgba(19, 21, 26, 0.8); /* 半透明黑色 */
+    backdrop-filter: blur(10px); /* 磨砂玻璃效果 */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    position: fixed; /* 固定在顶部 */
+    top: 0;
+    z-index: 1000;
+  }
+
+  .nav-content {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0.8rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: white;
+  }
+
+  .nav-logo {
+    height: 70px;
+    width: auto;
+  }
+
+  .squadron-name {
+    font-weight: bold;
+    font-size: 1.5rem;
+    letter-spacing: 1px;
+    color: #edba3a; 
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 2.5rem;
+    position:absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .nav-links a {
+    text-decoration: none;
+    color: #ccc;
+    font-size: 0.95rem;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover {
+    color: #edba3a;
+  }
+
+  .lang-selector select {
+    background: #222;
+    color: white;
+    border: 1px solid #444;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+</style>
