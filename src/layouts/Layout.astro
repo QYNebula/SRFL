@@ -1,185 +1,149 @@
 ---
-import Header from '../components/Header.astro'; // 导航栏
-import Footer from '../components/Footer.astro'; // 页脚
+import Header from '../components/Header.astro'; 
+import Footer from '../components/Footer.astro'; 
 
 interface Props {
-	title: string;
+    title: string;
+	lang?: 'en' | 'fr';
 }
 
-const { title } = Astro.props;
+const { title, lang = 'fr' } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{title}</title>
-	</head>
-	<div class="cursor-dot"></div>
-	<div class="cursor-outline"></div>
-	<body>
-		<Header />
-		
-		<div class="page-content">
-			<slot />
-		</div>
-		
-		<Footer />
-	</body>
-	<script is:inline>
-		(function() {
-			const canvas = document.createElement('canvas');
-			const ctx = canvas.getContext('2d');
-			
-			const config = {
-				colors: ['#ff4444', '#ffae00', '#edba3a'], // 红、橙、金
-				count: 150,                  // 背景静止火花数
-				range: 100,                  // 准星感应范围
-				trailCount: 20               // 鼠标拖尾粒子密度
-			};
+<html lang={lang}> <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="generator" content={Astro.generator} />
+        <title>{title}</title>
+    </head>
+    <body>
+        <div class="cursor-dot"></div>
+        <div class="cursor-outline"></div>
+        
+        <Header currentLang={lang} /> 
 
-			canvas.style.cssText = "position:fixed;top:0;left:0;z-index:-1;pointer-events:none;";
-			document.body.appendChild(canvas);
+        <div class="page-content">
+            <slot />
+        </div>
+        <Footer />
+    </body>
 
-			let width, height, sparks = [], trails = [];
-			const mouse = { x: null, y: null };
-
-			function init() {
-				width = canvas.width = window.innerWidth;
-				height = canvas.height = window.innerHeight;
-				sparks = [];
-				for (let i = 0; i < config.count; i++) {
-					sparks.push({
-						x: Math.random() * width,
-						y: Math.random() * height,
-						size: Math.random() * 4.5,
-						color: config.colors[Math.floor(Math.random() * config.colors.length)],
-						opacity: Math.random() * 0.4 + 0.1,
-						speed: Math.random() * 0.2
-					});
-				}
-			}
-
-			window.addEventListener('resize', init);
-			window.addEventListener('mousemove', e => {
-				mouse.x = e.clientX;
-				mouse.y = e.clientY;
-				
-				// 鼠标移动时产生新的拖尾粒子
-				for (let i = 0; i < 2; i++) { // 每次移动产生2个粒子
-					trails.push({
-						x: mouse.x,
-						y: mouse.y,
-						vx: (Math.random() - 0.5) * 2,
-						vy: (Math.random() - 0.5) * 2,
-						size: Math.random() * 3 + 1,
-						life: 1.0, // 初始生命值
-						color: config.colors[Math.floor(Math.random() * config.colors.length)]
-					});
-				}
-			});
-
-			init();
-
-			function draw() {
-				ctx.clearRect(0, 0, width, height);
-
-				// 1. 绘制背景静止火花
-				sparks.forEach(s => {
-					s.y -= s.speed; // 缓慢上升
-					if (s.y < 0) s.y = height;
-
-					let drawOpacity = s.opacity;
-					let drawSize = s.size;
-
-					if (mouse.x !== null) {
-						const dx = s.x - mouse.x;
-						const dy = s.y - mouse.y;
-						const dist = Math.sqrt(dx * dx + dy * dy);
-						if (dist < config.range) {
-							const r = 1 - dist / config.range;
-							drawOpacity = Math.min(1.0, s.opacity + r * 0.8);
-							drawSize = s.size * (1 + r * 2);
-						}
-					}
-
-					ctx.fillStyle = s.color;
-					ctx.globalAlpha = drawOpacity;
-					ctx.beginPath();
-					const spikes = 5; // 锯齿的数量
-					const outerRadius = drawSize;
-					const innerRadius = drawSize * 0.5; // 内部缩进，值越小锯齿越尖锐
-					let rot = Math.PI / 2 * 3;
-					let x = s.x;
-					let y = s.y;
-					let step = Math.PI / spikes;
-
-					ctx.beginPath();
-					ctx.moveTo(s.x, s.y - outerRadius);
-
-					for (let i = 0; i < spikes; i++) {
-						// 绘制外顶点
-						x = s.x + Math.cos(rot) * outerRadius;
-						y = s.y + Math.sin(rot) * outerRadius;
-						ctx.lineTo(x, y);
-						rot += step;
-
-						// 绘制内缩点（加入 Math.random() 可以让每个锯齿都不一样，更像碎屑）
-						x = s.x + Math.cos(rot) * innerRadius;
-						y = s.y + Math.sin(rot) * innerRadius;
-						ctx.lineTo(x, y);
-						rot += step;
-					}
-					ctx.lineTo(s.x, s.y - outerRadius);
-					ctx.closePath();
-					ctx.fill();
-				});
-
-				// 2. 绘制鼠标溅射拖尾 (不再是线，是动态消失的粒子)
-				for (let i = trails.length - 1; i >= 0; i--) {
-					const t = trails[i];
-					t.x += t.vx;
-					t.y += t.vy;
-					t.life -= 0.02; // 生命周期衰减
-					t.size *= 0.96; // 逐渐变小
-
-					if (t.life <= 0) {
-						trails.splice(i, 1);
-						continue;
-					}
-
-					ctx.globalAlpha = t.life;
-					ctx.fillStyle = t.color;
-					ctx.shadowBlur = 5;
-					ctx.shadowColor = t.color;
-					ctx.beginPath();
-					ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
-					ctx.fill();
-				}
-				
-				ctx.shadowBlur = 0;
-				ctx.globalAlpha = 1;
-				requestAnimationFrame(draw);
-			}
-			draw();
-		})();</script>
+    <script is:inline>
+        (function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const config = {
+                colors: ['#ff4444', '#ffae00', '#edba3a'],
+                count: 150,
+                range: 100,
+                trailCount: 20 
+            };
+            canvas.style.cssText = "position:fixed;top:0;left:0;z-index:-1;pointer-events:none;";
+            document.body.appendChild(canvas);
+            let width, height, sparks = [], trails = [];
+            const mouse = { x: null, y: null };
+            function init() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+                sparks = [];
+                for (let i = 0; i < config.count; i++) {
+                    sparks.push({
+                        x: Math.random() * width,
+                        y: Math.random() * height,
+                        size: Math.random() * 4.5,
+                        color: config.colors[Math.floor(Math.random() * config.colors.length)],
+                        opacity: Math.random() * 0.4 + 0.1,
+                        speed: Math.random() * 0.2
+                    });
+                }
+            }
+            window.addEventListener('resize', init);
+            window.addEventListener('mousemove', e => {
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+                for (let i = 0; i < 2; i++) {
+                    trails.push({
+                        x: mouse.x,
+                        y: mouse.y,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: (Math.random() - 0.5) * 2,
+                        size: Math.random() * 3 + 1,
+                        life: 1.0,
+                        color: config.colors[Math.floor(Math.random() * config.colors.length)]
+                    });
+                }
+            });
+            init();
+            function draw() {
+                ctx.clearRect(0, 0, width, height);
+                sparks.forEach(s => {
+                    s.y -= s.speed;
+                    if (s.y < 0) s.y = height;
+                    let drawOpacity = s.opacity;
+                    let drawSize = s.size;
+                    if (mouse.x !== null) {
+                        const dx = s.x - mouse.x;
+                        const dy = s.y - mouse.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < config.range) {
+                            const r = 1 - dist / config.range;
+                            drawOpacity = Math.min(1.0, s.opacity + r * 0.8);
+                            drawSize = s.size * (1 + r * 2);
+                        }
+                    }
+                    ctx.fillStyle = s.color;
+                    ctx.globalAlpha = drawOpacity;
+                    ctx.beginPath();
+                    const spikes = 5;
+                    const outerRadius = drawSize;
+                    const innerRadius = drawSize * 0.5;
+                    let rot = Math.PI / 2 * 3;
+                    let step = Math.PI / spikes;
+                    ctx.moveTo(s.x, s.y - outerRadius);
+                    for (let i = 0; i < spikes; i++) {
+                        ctx.lineTo(s.x + Math.cos(rot) * outerRadius, s.y + Math.sin(rot) * outerRadius);
+                        rot += step;
+                        ctx.lineTo(s.x + Math.cos(rot) * innerRadius, s.y + Math.sin(rot) * innerRadius);
+                        rot += step;
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                });
+                for (let i = trails.length - 1; i >= 0; i--) {
+                    const t = trails[i];
+                    t.x += t.vx; t.y += t.vy; t.life -= 0.02; t.size *= 0.96;
+                    if (t.life <= 0) { trails.splice(i, 1); continue; }
+                    ctx.globalAlpha = t.life;
+                    ctx.fillStyle = t.color;
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                requestAnimationFrame(draw);
+            }
+            draw();
+        })();
+    </script>
 </html>
 
 <style is:global>
+    /* 1. 全局鼠标隐藏增强 */
     html, body {
         margin: 0;
         height: 100%;
-		cursor: none;
-		/* 禁止用户意外选中文本（这样就不会出现光标） */
-		user-select: none;
-		/* 针对不同浏览器的兼容性 */
-		-webkit-user-select: none;
-		/* 特别是针对输入焦点的清除 */
-		caret-color: transparent;
+        cursor: none !important; /* 强制所有地方隐藏 */
+        user-select: none;
+        -webkit-user-select: none;
+        caret-color: transparent; /* 隐藏输入框闪烁的光标 */
     }
+
+    /* 2. 针对标题、说明文字、输入框的补充隐藏 */
+    h1, h2, h3, h4, h5, h6, p, span, label, textarea, input, .section-title, .status-tag {
+        cursor: none !important;
+    }
+
     body {
         display: flex;
         flex-direction: column;
@@ -187,123 +151,92 @@ const { title } = Astro.props;
         color: #ffffff;
         font-family: 'Segoe UI', sans-serif;
     }
+
     .page-content {
         padding-top: 70px;
         flex: 1 0 auto;
     }
-	/* 隐藏原生鼠标 */
-	html, body {
-		cursor: none;
-	}
 
-	/* 强制所有可点击元素不显示默认鼠标样式 */
-	a, button, select, .social-btn {
-		cursor: none !important;
-	}
+    /* 强制所有可点击元素不显示默认鼠标样式 */
+    a, button, select, .social-btn, .menu-item {
+        cursor: none !important;
+    }
 
-	/* 中心准星小+号 */
-	.cursor-dot {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 12px;
-		height: 12px;
-		transform: translate(-50%, -50%);
-		z-index: 10000;
-		pointer-events: none;
-	}
+    .cursor-dot {
+        position: fixed;
+        top: 0; left: 0;
+        width: 12px; height: 12px;
+        transform: translate(-50%, -50%);
+        z-index: 10000;
+        pointer-events: none;
+    }
 
-	/* 用伪元素画两条垂直交汇的线 */
-	.cursor-dot::before,
-	.cursor-dot::after {
-		content: '';
-		position: absolute;
-		background-color: var(--dot-color, #ff4444); /* 默认红色 */
-		transition: background-color 0.2s ease;
-	}
+    .cursor-dot::before,
+    .cursor-dot::after {
+        content: '';
+        position: absolute;
+        background-color: var(--dot-color, #ff4444);
+        transition: background-color 0.2s ease;
+    }
 
-	/* 水平线 */
-	.cursor-dot::before {
-		top: 5px;
-		left: 0;
-		width: 12px;
-		height: 2px;
-	}
+    .cursor-dot::before { top: 5px; left: 0; width: 12px; height: 2px; }
+    .cursor-dot::after { top: 0; left: 5px; width: 2px; height: 12px; }
 
-	/* 垂直线 */
-	.cursor-dot::after {
-		top: 0;
-		left: 5px;
-		width: 2px;
-		height: 12px;
-	}
-
-	/* 外部瞄准环 */
-	.cursor-outline {
-		width: 35px;
-		height: 35px;
-		border: 2px solid rgba(237, 186, 58, 0.5);
-		position: fixed;
-		top: 0;
-		left: 0;
-		transform: translate(-50%, -50%);
-		border-radius: 50%;
-		z-index: 9999;
-		pointer-events: none;
-		/* 增加平滑感 */
-		transition: width 0.2s, height 0.2s, background-color 0.2s;
-	}
+    .cursor-outline {
+        width: 35px; height: 35px;
+        border: 2px solid rgba(237, 186, 58, 0.5);
+        position: fixed;
+        top: 0; left: 0;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        z-index: 9999;
+        pointer-events: none;
+        transition: width 0.2s, height 0.2s, background-color 0.2s;
+    }
 </style>
+
 <script>
-    // 获取准星和外环元素，并进行类型断言
     const dot = document.querySelector(".cursor-dot") as HTMLElement;
     const outline = document.querySelector(".cursor-outline") as HTMLElement;
 
     if (dot && outline) {
-        // 1. 鼠标移动监听
         window.addEventListener("mousemove", (e) => {
             const posX = e.clientX;
             const posY = e.clientY;
             
-            // 十字准星直接跟随
             dot.style.left = `${posX}px`;
             dot.style.top = `${posY}px`;
 
-            // 外环平滑跟随
             outline.animate({
                 left: `${posX}px`,
                 top: `${posY}px`
             }, { duration: 500, fill: "forwards" });
 
-            // 2. 目标锁定检测
             const target = e.target as HTMLElement;
-            // 检查是否为链接、按钮、下拉菜单或特定类名
+            
+            // 逻辑修改：只有真正的“点击类”元素会让准星变绿
+            // 输入框（input/textarea）虽然也会隐藏鼠标，但准星保持红色
             const isClickable = target.closest('a') || 
-                                target.closest('button') || 
-                                target.closest('select') || 
-								target.closest('input') || 
-                                target.classList.contains('social-btn');
+								target.closest('button') || 
+								target.closest('.menu-item') ||
+								target.closest('input') ||
+								target.closest('textarea') ||
+								target.classList.contains('social-btn');
 
             if (isClickable) {
-                // 仅中心十字变绿
                 document.documentElement.style.setProperty('--dot-color', '#00ff00');
             } else {
-                // 恢复红色
                 document.documentElement.style.setProperty('--dot-color', '#ff4444');
             }
         });
 
-        // 3. 点击交互逻辑
         window.addEventListener("mousedown", () => {
-            // 点击时：内部填充半透明金色 (rgba 237, 186, 58, 0.2)
             outline.style.backgroundColor = "rgba(237, 186, 58, 0.2)"; 
-            // 点击时略微收缩（比如缩到 25px，或者保持 35px 视你喜好，这里设为 28px 增加动感）
             outline.style.width = "28px"; 
             outline.style.height = "28px";
         });
         
         window.addEventListener("mouseup", () => {
-            // 松开时：恢复透明背景
             outline.style.backgroundColor = "transparent";
             outline.style.width = "35px"; 
             outline.style.height = "35px";

@@ -1,19 +1,27 @@
 ---
 // src/components/Header.astro
-// 接收当前语言的参数，方便以后切换
-const { currentLang = 'en' } = Astro.props;
 
-// 导航链接配置：已移除 Staff，保留 Home, About us, SQB
+// 1. 【技术重点】直接从 Astro 全局对象获取当前路径
+const pathname = Astro.url.pathname;
+
+// 2. 【自我感应】只要路径是以 /en 开头，就自动判定为英文模式
+const isEnglish = pathname.startsWith('/en');
+const currentLang = isEnglish ? 'en' : 'fr';
+
+// 3. 动态前缀
+const prefix = isEnglish ? '/en' : '';
+
+// 4. 导航链接
 const navItems = [
-  { name: 'Home', href: '/en/' },
-  { name: 'About us', href: '/en/about/' },
-  { name: 'SQB', href: '/en/sqb/' },
+  { name: 'Home', href: `${prefix}/` },
+  { name: 'About us', href: `${prefix}/about/` },
+  { name: 'SQB', href: `${prefix}/sqb/` },
 ];
 ---
 
 <header class="nav-container">
   <div class="nav-content">
-    <a href="/en/" class="logo-area">
+    <a href={`${prefix}/`} class="logo-area">
       <img src="/images/logo.png" alt="SRFL Logo" class="nav-logo" />
       <span class="squadron-name">SRFL SQUADRON</span>
     </a>
@@ -27,11 +35,10 @@ const navItems = [
     <div class="right-section">
       <div class="lang-selector">
         <select id="langSelect">
-          <option value="/en/">English</option>
-          <option value="/">Français</option>
+          <option value="/en/" selected={isEnglish}>English</option>
+          <option value="/" selected={!isEnglish}>Français</option>
         </select>
       </div>
-      
       <a href="/login" class="admin-link">Admins</a>
     </div>
   </div>
@@ -134,14 +141,13 @@ const navItems = [
   const select = document.getElementById('langSelect');
   if (select) {
     select.addEventListener('change', (e) => {
-      // 获取选中的路径并跳转
       const target = (e.target as HTMLSelectElement).value;
       window.location.href = target;
     });
 
-    // 自动检测当前路径，让下拉菜单显示正确的语言
+    // 自动检测并同步下拉框状态
     const currentPath = window.location.pathname;
-    if (currentPath.includes('/en')) {
+    if (currentPath.startsWith('/en')) {
         (select as HTMLSelectElement).value = '/en/';
     } else {
         (select as HTMLSelectElement).value = '/';

@@ -1,0 +1,59 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { supabase } from '../../lib/supabase';
+
+// 读取英语内容
+const { data: sections, error } = await supabase
+  .from('about_us')
+  .select('title, content')
+  .eq('lang', 'en') 
+  .order('sort_order', { ascending: true });
+
+if (error) console.error('SQL Error (EN):', error);
+---
+
+<Layout title="ABOUT US | SRFL" lang="en">
+  <main class="about-container">
+    <header class="about-header">
+      <h1 class="glitch-title">ABOUT US</h1>
+    </header>
+
+    <div class="content-wrapper">
+      {sections && sections.length > 0 ? (
+        sections.map((item) => (
+          <section class="info-block">
+            <h2 class="section-title">{item.title}</h2>
+            <div class="section-content">
+              {item.content.split('\n').map((line: string) => (
+                <p>{line}</p>
+              ))}
+            </div>
+          </section>
+        ))
+      ) : (
+        <div class="empty-state">
+           <p class="coming-soon">COMING SOON...</p>
+           <p class="system-status">STATUS: NO DATA STREAM DETECTED</p>
+        </div>
+      )}
+    </div>
+  </main>
+</Layout>
+
+<style>
+  /* 样式与法语版一致，建议保持 UI 统一 */
+  .about-container { max-width: 900px; margin: 0 auto; padding: 12rem 2rem; color: #fff; }
+  .about-header { margin-bottom: 5rem; border-bottom: 1px solid #222; padding-bottom: 2rem; }
+  .glitch-title { font-size: 2.5rem; color: #edba3a; font-family: 'Courier New', monospace; font-weight: 900; margin: 0; letter-spacing: -1px; }
+
+  .info-block { margin-bottom: 6rem; }
+  .section-title { color: #edba3a; font-size: 1.4rem; font-weight: 800; margin-bottom: 2rem; font-family: 'Courier New', monospace; }
+  .section-title::before { content: "> "; color: rgba(237, 186, 58, 0.4); }
+  
+  .section-content { color: #ccc; line-height: 1.8; font-size: 1.05rem; max-width: 75ch; }
+  .section-content p { margin-bottom: 1.5rem; }
+
+  .empty-state { padding: 4rem 0; text-align: left; }
+  .coming-soon { color: #edba3a; font-size: 2rem; font-family: 'Courier New', monospace; font-weight: bold; margin-bottom: 1rem; }
+  .system-status { color: #444; font-family: monospace; font-size: 0.9rem; letter-spacing: 2px; }
+</style>
