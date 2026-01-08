@@ -16,13 +16,18 @@ if (Astro.request.method === "POST") {
     const CORRECT_PASSWORD = import.meta.env.ADMIN_PASSWORD;
 
     if (password === CORRECT_PASSWORD) {
-      // Success: Redirect to the Admin Dashboard
-      return Astro.redirect('/admin/dashboard');
+    // Success: Redirect to the Admin Dashboard
+        Astro.cookies.set("admin_session", "verified", { 
+            path: "/", 
+            httpOnly: true,
+            sameSite: "strict" // 增加安全性，防止跨站攻击
+        });
+        return Astro.redirect('/admin/dashboard');
     } else {
-      errorMessage = "ACCESS DENIED: INVALID KEY";
+      errorMessage = "ACCÈS REFUSÉ : CLÉ INVALIDE";
     }
   } catch (error) {
-    errorMessage = "SYSTEM ERROR: FAILED TO INITIALIZE";
+    errorMessage = "ERREUR SYSTÈME : ÉCHEC D'INITIALISATION";
   }
 }
 ---
@@ -30,10 +35,10 @@ if (Astro.request.method === "POST") {
 <Layout title="TERMINAL ACCESS | SRFL">
   <div class="login-wrapper">
     <form method="POST" class="login-card">
-      <h1 class="title">ADMIN TERMINAL</h1>
+      <h1 class="title">TERMINAL D'ADMINISTRATION</h1>
       
       <div class="input-box">
-        <label>ACCESS IDENTIFICATION</label>
+        <label>IDENTIFICATION D'ACCÈS</label>
         <input 
           type="password" 
           name="password" 
@@ -45,10 +50,11 @@ if (Astro.request.method === "POST") {
 
       {errorMessage && <p class="error">{errorMessage}</p>}
 
-      <button type="submit">INITIALIZE SESSION</button>
+      <button type="submit">CONNEXION</button>
       
       <div class="security-note">
-        ENCRYPTED CHANNEL - AUTHORIZED PERSONNEL ONLY
+        CANAL CHIFFRÉ - RÉSERVÉ AU PERSONNEL AUTORISÉ
+      </br>ENCRYPTED CHANNEL - AUTHORIZED PERSONNEL ONLY
       </div>
     </form>
   </div>
@@ -160,7 +166,7 @@ if (Astro.request.method === "POST") {
 
     .security-note {
         margin-top: 2rem;
-        font-size: 0.6rem;
+        font-size: 0.8rem;
         color: #444;
         letter-spacing: 1px;
         text-transform: uppercase;

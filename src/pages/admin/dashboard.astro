@@ -1,0 +1,154 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+
+// 保安逻辑：检查通行证
+const session = Astro.cookies.get("admin_session");
+if (!session || session.value !== "verified") {
+  return Astro.redirect('/login');
+}
+---
+
+<Layout title="COMMAND CENTER | SRFL">
+  <div class="dashboard-container">
+    <header class="db-header">
+      <div class="status-tag">
+        <span class="pulse-dot"></span>
+        SYSTÈME EN LIGNE
+      </div>
+    </header>
+
+    <main class="db-main">
+      <div class="welcome-section">
+        <h1 class="glitch-text">BIENVENUE, COMMANDANT</h1>
+        <p class="subtitle">Les Soldats Résistants Français Libres</p>
+      </div>
+
+      <div class="action-grid">
+        <a href="/admin/staff" class="card">
+          <span class="label">LISTE DU PERSONNEL</span>
+          <span class="status">VOIR ET MODIFIER LA LISTE</span>
+        </a>
+        
+        <a href="/admin/settings" class="card">
+          <span class="label">GESTION DU SITE</span>
+          <span class="status">GESTION DES CONTENUS ET MÉDIAS</span>
+        </a>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .dashboard-container {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: 80vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .db-header {
+    display: flex;
+    align-items: center;
+    padding: 1rem 0;
+    margin-bottom: 1rem;
+  }
+
+  .status-tag {
+    color: #00ff00;
+    font-family: monospace;
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-shadow: 0 0 8px rgba(0, 255, 0, 0.4);
+  }
+
+  .pulse-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #00ff00;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00ff00;
+    animation: pulse-animation 2s infinite ease-in-out;
+  }
+
+  @keyframes pulse-animation {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.2; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .welcome-section {
+    text-align: center;
+    /* 欢迎语往下挪一点 */
+    margin-top: 8rem;
+  }
+
+  .glitch-text {
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: #edba3a;
+    letter-spacing: 8px;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+  }
+
+  .subtitle {
+    color: #d7d7d7;
+    letter-spacing: 8px;
+    font-size: 1rem;
+    text-transform: uppercase;
+  }
+
+  .action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin-top: 5rem;
+  }
+
+  /* 按钮卡片样式 */
+  .card {
+    text-decoration: none;
+    border: 1px solid rgba(237, 186, 58, 0.2);
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.3s ease;
+    cursor: none !important; /* 确保维持自定义准星逻辑 */
+  }
+
+  .card:hover {
+    background: rgba(237, 186, 58, 0.05);
+    border-color: #edba3a;
+    transform: translateY(-5px);
+  }
+
+  .card .label {
+    font-size: 2rem;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: #fff;
+    transition: color 0.3s ease;
+  }
+
+  .card:hover .label {
+    color: #edba3a;
+  }
+
+  .card .status {
+    font-size: 1rem;
+    color: #edba3a;
+    font-family: Courier;
+    opacity: 0.7;
+  }
+</style>
