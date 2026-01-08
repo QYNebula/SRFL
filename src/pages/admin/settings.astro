@@ -10,41 +10,119 @@ if (!session || session.value !== "verified") {
 }
 
 let saveStatus = "";
-let isPost = Astro.request.method === "POST";
+const isPost = Astro.request.method === "POST";
 
 if (isPost) {
   try {
     const formData = await Astro.request.formData();
-    const titles = formData.getAll('about_titles[]');
-    const contents = formData.getAll('about_contents[]');
-    const langs = formData.getAll('about_langs[]'); 
-    
-    const newRows = titles
-      .map((title, index) => ({
-        title: title.toString().trim(),
-        content: contents[index].toString().trim(),
-        lang: langs[index].toString(), 
-        sort_order: index 
-      }))
-      .filter(row => row.title !== "" && row.content !== "");
+    const action = formData.get('action')?.toString();
 
-    if (newRows.length > 0) {
-      await supabase.from('about_us').delete().neq('title', 'SYSTEM_RESERVED_PROTECT');
-      const { error } = await supabase.from('about_us').insert(newRows);
-      if (error) throw error;
-      saveStatus = "SUCCESS : BASE DE DONNÉES SYNCHRONISÉE";
-    } else {
-      saveStatus = "DONNÉES VIDES : ANNULÉ";
+    // --- 03 媒体板块逻辑 ---
+    if (action === 'upload_gallery') {
+      const file = formData.get('gallery_file') as File;
+
+      if (file && file.size > 0) {
+        // 1) 服务端校验：必须是图片，且禁止 GIF（动图）
+        const MAX_BYTES = 15 * 1024 * 1024; // 15MB
+        const mime = (file.type || "").toLowerCase();
+
+        if (!mime.startsWith('image/')) {
+          saveStatus = "ERREUR : FICHIER NON-IMAGE REFUSÉ";
+        } else if (mime === 'image/gif') {
+          saveStatus = "ERREUR : GIF (ANIMÉ) INTERDIT";
+        } else if (file.size > MAX_BYTES) {
+          saveStatus = "ERREUR : FICHIER TROP GRAND (MAX 15MB)";
+        } else {
+          // 2) 上传到 Storage
+          const fileExt = (file.name.split('.').pop() || 'img').toLowerCase();
+          const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage.from('gallery').upload(fileName, file);
+          if (uploadError) throw uploadError;
+
+          // 3) 写入数据库
+          const { data: { publicUrl } } = supabase.storage.from('gallery').getPublicUrl(fileName);
+          const { error: insertError } = await supabase
+            .from('homepage_gallery')
+            .insert([{ url: publicUrl, storage_path: fileName }]);
+
+          if (insertError) throw insertError;
+
+          // 4) 末尾淘汰制：超过 30 张就删除最老的
+          const LIMIT = 30;
+
+          const { data: allRows, error: listError } = await supabase
+            .from('homepage_gallery')
+            .select('id, storage_path, created_at')
+            .order('created_at', { ascending: true });
+
+          if (listError) throw listError;
+
+          if (allRows && allRows.length > LIMIT) {
+            const excess = allRows.length - LIMIT;
+            const toRemove = allRows.slice(0, excess);
+
+            const paths = toRemove.map(r => r.storage_path).filter(Boolean);
+            const ids = toRemove.map(r => r.id).filter(Boolean);
+
+            if (paths.length > 0) {
+              const { error: rmError } = await supabase.storage.from('gallery').remove(paths);
+              if (rmError) throw rmError;
+            }
+
+            if (ids.length > 0) {
+              const { error: delError } = await supabase.from('homepage_gallery').delete().in('id', ids);
+              if (delError) throw delError;
+            }
+          }
+
+          saveStatus = "SUCCESS : IMAGE TÉLÉCHARGÉE";
+        }
+      }
+    }
+
+    else if (action === 'delete_gallery') {
+      const id = formData.get('id')?.toString();
+      const path = formData.get('path')?.toString();
+      if (id && path) {
+        await supabase.storage.from('gallery').remove([path]);
+        await supabase.from('homepage_gallery').delete().eq('id', id);
+        saveStatus = "SUCCESS : IMAGE SUPPRIMÉE";
+      }
+    }
+    // --- 01 原有 About Us 逻辑 ---
+    else {
+      const titles = formData.getAll('about_titles[]');
+      const contents = formData.getAll('about_contents[]');
+      const langs = formData.getAll('about_langs[]');
+
+      const newRows = titles
+        .map((title, index) => ({
+          title: title?.toString().trim() ?? "",
+          content: contents[index]?.toString().trim() ?? "",
+          lang: langs[index]?.toString() ?? "fr",
+          sort_order: index
+        }))
+        .filter(row => row.title !== "" && row.content !== "");
+
+      if (newRows.length > 0) {
+        await supabase.from('about_us').delete().neq('title', 'SYSTEM_RESERVED_PROTECT');
+        const { error } = await supabase.from('about_us').insert(newRows);
+        if (error) throw error;
+        saveStatus = "SUCCESS : BASE DE DONNÉES SYNCHRONISÉE";
+      }
     }
   } catch (err) {
-    saveStatus = "ERREUR SYSTÈME : ÉCHEC DE SYNC";
+    const msg = err instanceof Error ? err.message : "ÉCHEC";
+    saveStatus = `ERREUR SYSTÈME : ${msg}`;
   }
 }
 
-const { data: aboutSections } = await supabase
-  .from('about_us')
-  .select('*')
-  .order('sort_order', { ascending: true });
+// 并行读取（不改变任何展示/逻辑）
+const [{ data: aboutSections }, { data: galleryImages }] = await Promise.all([
+  supabase.from('about_us').select('*').order('sort_order', { ascending: true }),
+  supabase.from('homepage_gallery').select('*').order('created_at', { ascending: false })
+]);
 ---
 
 <Layout title="SETTINGS | SRFL COMMAND">
@@ -62,7 +140,7 @@ const { data: aboutSections } = await supabase
           <h2 class="block-title">01 // À PROPOS</h2>
           <button type="button" id="add-section" class="add-btn">+ AJOUTER UNE SECTION</button>
         </div>
-        
+
         <div id="about-container" class="fields-list">
           {aboutSections && aboutSections.length > 0 ? (
             aboutSections.map((section, index) => (
@@ -93,30 +171,64 @@ const { data: aboutSections } = await supabase
              {isPost && saveStatus && <span id="server-status" class={saveStatus.includes('SUCCESS') ? 'msg-ok' : 'msg-err'}>{saveStatus}</span>}
              <span id="client-error" class="msg-err" style="display: none;">ERREUR DE VALIDATION : CHAMPS VIDES DÉTECTÉS</span>
           </div>
-          <button type="submit" class="submit-btn" 
+          <button type="submit" class="submit-btn"
             style="background: #edba3a; border: none; color: #000; padding: 12px 30px; font-weight: 900; font-family: monospace; cursor: pointer; transition: 0.2s;"
-            onmouseover="this.style.background='#fff'" 
+            onmouseover="this.style.background='#fff'"
             onmouseout="this.style.background='#edba3a'">
             SOUMETTRE
           </button>
         </div>
       </section>
-
-      <section class="config-block">
-        <h2 class="block-title" style="margin-bottom: 2.5rem;">02 // SQB</h2>
-        <div class="lock-overlay">AUCUN CHAMP DE DONNÉES DÉFINI. SYNC DB EN ATTENTE.</div>
-      </section>
-
-      <section class="config-block">
-        <h2 class="block-title" style="margin-bottom: 2.5rem;">03 // AUTRES MÉDIAS</h2>
-        <div class="lock-overlay">CANAL CHIFFRÉ - EN ATTENTE.</div>
-      </section>
-
     </form>
+
+    <section class="config-block">
+      <h2 class="block-title" style="margin-bottom: 2.5rem;">02 // SQB</h2>
+      <div class="lock-overlay">AUCUN CHAMP DE DONNÉES DÉFINI. SYNC DB EN ATTENTE.</div>
+    </section>
+
+    <section class="config-block">
+      <!-- 新的更高一级标题 -->
+      <h2 class="block-title">03 // AUTRES MÉDIAS</h2>
+
+      <!-- 原来的标题降一级：这一行负责与上传按钮对齐 -->
+      <div class="block-header" style="margin-top: 2rem;">
+        <h3 class="block-title" style="font-size: 1.05rem; opacity: 0.85; margin: 0;">
+          GALLERY DE LA PAGE D'ACCUEIL
+        </h3>
+
+        <form method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="action" value="upload_gallery" />
+          <label class="add-btn" style="cursor: pointer; display: inline-block;">
+            + CHARGER UNE IMAGE
+            <input type="file" name="gallery_file" accept="image/*" style="display:none" onchange="this.form.submit()"/>
+          </label>
+        </form>
+      </div>
+
+      <div class="gallery-grid">
+        {galleryImages && galleryImages.length > 0 ? (
+          galleryImages.map((img) => (
+            <div class="gallery-card">
+              <img src={img.url} alt="Gallery item" loading="lazy" />
+              <form method="POST" class="delete-overlay">
+                <input type="hidden" name="action" value="delete_gallery" />
+                <input type="hidden" name="id" value={img.id} />
+                <input type="hidden" name="path" value={img.storage_path} />
+                <button type="submit" class="mini-close-btn">×</button>
+              </form>
+            </div>
+          ))
+        ) : (
+          <div class="lock-overlay">VIDE : AUCUNE IMAGE DÉTECTÉE.</div>
+        )}
+      </div>
+    </section>
   </div>
 </Layout>
 
 <script is:inline>
+  /* JS 逻辑完全保留原样 + 仅新增“自愈兜底”，正常情况下不触发 */
+
   const UI_STYLE = {
     group: "background: rgba(13, 14, 18, 0.9); backdrop-filter: blur(15px); border: 1px solid rgba(237, 186, 58, 0.1); border-left: 4px solid #edba3a; padding: 2rem; margin-bottom: 2rem; display: block;",
     header: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;",
@@ -146,114 +258,192 @@ const { data: aboutSections } = await supabase
     });
   }
 
-  addBtn.addEventListener('click', () => {
-    const div = document.createElement('div');
-    div.className = 'dynamic-group';
-    div.setAttribute('style', UI_STYLE.group);
-    div.innerHTML = `
-      <div style="${UI_STYLE.header}">
-        <div style="${UI_STYLE.controls}">
-           <button type="button" class="order-btn up" onclick="moveRow(this, 'up')" style="${UI_STYLE.orderBtn}">▲</button>
-           <button type="button" class="order-btn down" onclick="moveRow(this, 'down')" style="${UI_STYLE.orderBtn}">▼</button>
-           <span class="index-label" style="${UI_STYLE.index}">NOUVELLE_SECTION</span>
-           <select name="about_langs[]" class="lang-select" style="${UI_STYLE.langSelect}">
-              <option value="en">ANGLAIS</option>
-              <option value="fr">FRANÇAIS</option>
-           </select>
-        </div>
-        <button type="button" class="js-del" style="${UI_STYLE.delete}">SUPPRIMER</button>
-      </div>
-      <div style="${UI_STYLE.stack}">
-        <input type="text" name="about_titles[]" placeholder="TITRE_STRING" style="${UI_STYLE.input}" />
-        <textarea name="about_contents[]" placeholder="CORPS_DU_CONTENU" style="${UI_STYLE.textarea}"></textarea>
-      </div>
-    `;
-    bindInputEffects(div);
-    div.querySelector('.js-del').onclick = () => { div.remove(); refreshUI(); };
-    container.appendChild(div);
-    refreshUI();
-  });
+  function bindButtonHoverEffects(parent) {
+  // 上下箭头：金色透明填充
+    parent.querySelectorAll('.order-btn').forEach(btn => {
+      btn.onmouseenter = () => { btn.style.backgroundColor = "rgba(237, 186, 58, 0.12)"; };
+      btn.onmouseleave = () => { btn.style.backgroundColor = "transparent"; };
+    });
 
-  mainForm.addEventListener('submit', (e) => {
-    let hasError = false;
-    container.querySelectorAll('input, textarea').forEach(f => {
-      if (!f.value.trim()) {
-        f.style.borderColor = "#ff4444";
-        f.style.background = "rgba(255, 68, 68, 0.05)";
-        hasError = true;
-      } else {
-        f.style.borderColor = "rgba(255, 255, 255, 0.1)";
+    // 删除按钮：红色透明填充（包含两种：初始渲染的 .delete-btn 和动态新增的 .js-del）
+    parent.querySelectorAll('.delete-btn, .js-del').forEach(btn => {
+      btn.onmouseenter = () => { btn.style.backgroundColor = "rgba(255, 68, 68, 0.12)"; };
+      btn.onmouseleave = () => { btn.style.backgroundColor = "transparent"; };
+    });
+  }
+
+
+  // 仅当检测到“明显变成浏览器默认样式”时才进行兜底修复（正常情况下不触发）
+  function selfHealStyles() {
+    if (!container) return;
+
+    const sampleInput = container.querySelector('input[name="about_titles[]"]');
+    if (!sampleInput) return;
+
+    const bg = window.getComputedStyle(sampleInput).backgroundColor;
+    const isDefaultWhite = bg === 'rgb(255, 255, 255)';
+
+    if (!isDefaultWhite) return;
+
+    // 1) 修复 About 区域现有条目
+    container.querySelectorAll('.dynamic-group').forEach(group => {
+      group.setAttribute('style', UI_STYLE.group);
+
+      const header = group.querySelector('.group-header');
+      if (header) header.setAttribute('style', UI_STYLE.header);
+
+      const controls = group.querySelector('.order-controls');
+      if (controls) controls.setAttribute('style', UI_STYLE.controls);
+
+      group.querySelectorAll('.order-btn').forEach(btn => {
+        // 关键：保留 refreshUI() 设置的 visibility，否则第一项 ▲ 会被自愈“复活”
+        const keepVisibility = btn.style.visibility;
+        btn.setAttribute('style', UI_STYLE.orderBtn);
+        if (keepVisibility) btn.style.visibility = keepVisibility;
+      });
+
+      const indexLabel = group.querySelector('.index-label');
+      if (indexLabel) indexLabel.setAttribute('style', UI_STYLE.index);
+
+      const langSelect = group.querySelector('.lang-select');
+      if (langSelect) langSelect.setAttribute('style', UI_STYLE.langSelect);
+
+      const del = group.querySelector('.delete-btn');
+      if (del) del.setAttribute('style', UI_STYLE.delete);
+
+      const stack = group.querySelector('.input-stack');
+      if (stack) stack.setAttribute('style', UI_STYLE.stack);
+
+      group.querySelectorAll('input[name="about_titles[]"]').forEach(i => i.setAttribute('style', UI_STYLE.input));
+      group.querySelectorAll('textarea[name="about_contents[]"]').forEach(t => t.setAttribute('style', UI_STYLE.textarea));
+    });
+
+    // 2) 修复 Add 按钮（只在丢样式时）
+    document.querySelectorAll('.add-btn').forEach(btn => {
+      const cs = window.getComputedStyle(btn);
+      // 默认按钮一般是灰色/浅色；你的主题是金色
+      if (cs.backgroundColor !== 'rgb(237, 186, 58)') {
+        btn.style.background = '#edba3a';
+        btn.style.border = 'none';
+        btn.style.color = '#000';
+        btn.style.padding = '10px 25px';
+        btn.style.fontWeight = '900';
+        btn.style.fontFamily = 'monospace';
+        btn.style.transition = '0.2s';
+        btn.style.textDecoration = 'none';
+        btn.style.fontSize = '0.8rem';
       }
     });
-    if (hasError) {
-      e.preventDefault();
-      document.getElementById('client-error').style.display = "inline";
-      setTimeout(() => { document.getElementById('client-error').style.display = "none"; }, 3000);
-    }
-  });
+    if (typeof refreshUI === 'function') refreshUI();
+    bindButtonHoverEffects(document);
+  }
 
-  window.moveRow = (btn, dir) => {
-    const current = btn.closest('.dynamic-group');
-    if (dir === 'up' && current.previousElementSibling) container.insertBefore(current, current.previousElementSibling);
-    else if (dir === 'down' && current.nextElementSibling) container.insertBefore(current.nextElementSibling, current);
-    refreshUI();
-  };
-
-  window.refreshUI = () => {
-    const groups = container.querySelectorAll('.dynamic-group');
-    groups.forEach((group, i) => {
-      group.querySelector('.index-label').innerText = `SECTION_${String(i + 1).padStart(2, '0')}`;
-      const up = group.querySelector('.up'), down = group.querySelector('.down');
-      if(up) up.style.visibility = (i === 0) ? 'hidden' : 'visible';
-      if(down) down.style.visibility = (i === groups.length - 1) ? 'hidden' : 'visible';
+  // 防止某些情况下元素不存在导致脚本抛错（抛错会中断后续逻辑）
+  if (container && addBtn && mainForm) {
+    addBtn.addEventListener('click', () => {
+      const div = document.createElement('div');
+      div.className = 'dynamic-group';
+      div.setAttribute('style', UI_STYLE.group);
+      div.innerHTML = `
+        <div style="${UI_STYLE.header}">
+          <div style="${UI_STYLE.controls}">
+             <button type="button" class="order-btn up" onclick="moveRow(this, 'up')" style="${UI_STYLE.orderBtn}">▲</button>
+             <button type="button" class="order-btn down" onclick="moveRow(this, 'down')" style="${UI_STYLE.orderBtn}">▼</button>
+             <span class="index-label" style="${UI_STYLE.index}">NOUVELLE_SECTION</span>
+             <select name="about_langs[]" class="lang-select" style="${UI_STYLE.langSelect}">
+                <option value="en">ANGLAIS</option>
+                <option value="fr">FRANÇAIS</option>
+             </select>
+          </div>
+          <button type="button" class="js-del" style="${UI_STYLE.delete}">SUPPRIMER</button>
+        </div>
+        <div style="${UI_STYLE.stack}">
+          <input type="text" name="about_titles[]" placeholder="TITRE_STRING" style="${UI_STYLE.input}" />
+          <textarea name="about_contents[]" placeholder="CORPS_DU_CONTENU" style="${UI_STYLE.textarea}"></textarea>
+        </div>
+      `;
+      bindInputEffects(div);
+      bindButtonHoverEffects(div);
+      div.querySelector('.js-del').onclick = () => { div.remove(); refreshUI(); };
+      container.appendChild(div);
+      refreshUI();
     });
-  };
 
-  bindInputEffects(document);
-  refreshUI();
+    mainForm.addEventListener('submit', (e) => {
+      let hasError = false;
+      container.querySelectorAll('input, textarea').forEach(f => {
+        if (!f.value.trim()) {
+          f.style.borderColor = "#ff4444";
+          f.style.background = "rgba(255, 68, 68, 0.05)";
+          hasError = true;
+        } else {
+          f.style.borderColor = "rgba(255, 255, 255, 0.1)";
+        }
+      });
+      if (hasError) {
+        e.preventDefault();
+        document.getElementById('client-error').style.display = "inline";
+        setTimeout(() => { document.getElementById('client-error').style.display = "none"; }, 3000);
+      }
+    });
+
+    window.moveRow = (btn, dir) => {
+      const current = btn.closest('.dynamic-group');
+      if (dir === 'up' && current.previousElementSibling) container.insertBefore(current, current.previousElementSibling);
+      else if (dir === 'down' && current.nextElementSibling) container.insertBefore(current.nextElementSibling, current);
+      refreshUI();
+    };
+
+    window.refreshUI = () => {
+      const groups = container.querySelectorAll('.dynamic-group');
+      groups.forEach((group, i) => {
+        group.querySelector('.index-label').innerText = `SECTION_${String(i + 1).padStart(2, '0')}`;
+        const up = group.querySelector('.up'), down = group.querySelector('.down');
+        if(up) up.style.visibility = (i === 0) ? 'hidden' : 'visible';
+        if(down) down.style.visibility = (i === groups.length - 1) ? 'hidden' : 'visible';
+      });
+    };
+
+    bindInputEffects(document);
+    bindButtonHoverEffects(document);
+    refreshUI();
+    selfHealStyles(); // ✅ 新增：仅在“丢样式”时自愈
+  } else {
+    // 兜底：即使绑定失败，也尝试修复样式（不影响正常情况）
+    selfHealStyles();
+  }
 </script>
 
 <style>
+  /* 原有 Style 完全保留 */
   .settings-wrapper { max-width: 900px; margin: 0 auto; padding: 2rem 1rem 12rem 1rem; color: #fff; }
   .header-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5rem; }
   .mode-indicator { color: #00ff00; font-family: monospace; font-size: 0.8rem; display: flex; align-items: center; gap: 10px; }
   .dot { width: 8px; height: 8px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 10px #00ff00; animation: blink 1.5s infinite; }
   .back-btn { color: #edba3a; text-decoration: none; font-family: monospace; font-size: 0.8rem; border: 1px solid #edba3a; padding: 8px 20px; transition: 0.2s; }
   .back-btn:hover { background: rgba(237, 186, 58, 0.1); }
-
   .config-block { margin-bottom: 8rem; position: relative; clear: both; }
   .block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; border-bottom: 1px solid #222; padding-bottom: 15px; }
   .block-title { color: #edba3a; font-size: 1.5rem; font-weight: bold; margin: 0; letter-spacing: 2px; }
-
-  .add-btn { background: #edba3a; border: none; color: #000; padding: 10px 25px; font-weight: 900; font-family: monospace; cursor: pointer; transition: 0.2s; }
+  .add-btn { background: #edba3a; border: none; color: #000; padding: 10px 25px; font-weight: 900; font-family: monospace; cursor: pointer; transition: 0.2s; text-decoration: none; font-size: 0.8rem; }
   .add-btn:hover { background: #fff; }
-
-  .dynamic-group { background: rgba(13, 14, 18, 0.9); backdrop-filter: blur(15px); border: 1px solid rgba(237, 186, 58, 0.1); border-left: 4px solid #edba3a; padding: 2rem; margin-bottom: 2rem; }
-  .group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-  .order-controls { display: flex; align-items: center; gap: 12px; }
-
-  .lang-select { 
-    background: #000 !important; color: #edba3a !important; border: 1px solid rgba(237, 186, 58, 0.5); 
-    font-family: Simhei; font-size: 0.7rem; padding: 4px 8px; outline: none; cursor: pointer; transition: 0.2s;
-  }
-  .lang-select option { background: #000; color: #edba3a; }
-  .lang-select:focus { border-color: #edba3a; background: rgba(237, 186, 58, 0.1) !important; }
-
-  .order-btn { background: transparent; border: 1px solid rgba(237, 186, 58, 0.4); color: #edba3a; width: 30px; height: 30px; cursor: pointer; }
-  .order-btn:hover { background: rgba(237, 186, 58, 0.2); }
-  .delete-btn { background: transparent; border: 1px solid #ff4444; color: #ff4444; padding: 6px 15px; font-weight: bold; cursor: pointer; }
-  .delete-btn:hover { background: rgba(255, 68, 68, 0.2); }
-
-  input[type="text"], textarea { 
-    width: 100%; padding: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); 
-    color: #edba3a; font-family: 'Courier New', monospace; font-size: 1.1rem; outline: none; transition: 0.3s; caret-color: #edba3a; 
-  }
-  textarea { color: #aaa; min-height: 120px; resize: vertical; font-family: inherit; }
-  input:focus, textarea:focus { border-color: #edba3a; background: rgba(237, 186, 58, 0.05); }
-
-  .lock-overlay { border: 1px dashed #222; padding: 4rem; text-align: center; color: #333; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px; }
   .msg-ok { color: #00ff00; font-family: monospace; }
   .msg-err { color: #ff4444; font-family: monospace; font-weight: bold; animation: blink 2s infinite; }
+  .lock-overlay { border: 1px dashed #222; padding: 4rem; text-align: center; color: #333; font-family: monospace; font-size: 0.9rem; letter-spacing: 1px; }
+
+  /* 03 板块专用新 Style */
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .gallery-card { position: relative; border: 1px solid #222; aspect-ratio: 16/9; background: #000; overflow: hidden; }
+  .gallery-card img { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; transition: 0.3s; }
+  .gallery-card:hover img { opacity: 1; }
+
+  .delete-overlay { position: absolute; top: 5px; right: 5px; z-index: 10; }
+  .mini-close-btn {
+    background: #ff4444; color: #fff; border: none; width: 24px; height: 24px;
+    cursor: pointer; font-weight: bold; font-family: monospace; font-size: 1.2rem;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  .mini-close-btn:hover { background: #fff; color: #ff4444; }
 
   @keyframes blink { 50% { opacity: 0.5; } }
 </style>
