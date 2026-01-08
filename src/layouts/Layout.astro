@@ -281,6 +281,7 @@ const { title } = Astro.props;
             const isClickable = target.closest('a') || 
                                 target.closest('button') || 
                                 target.closest('select') || 
+								target.closest('input') || 
                                 target.classList.contains('social-btn');
 
             if (isClickable) {

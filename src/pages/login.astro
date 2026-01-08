@@ -1,0 +1,169 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Backend Logic: Handle Login Validation
+let errorMessage = "";
+
+if (Astro.request.method === "POST") {
+  try {
+    const data = await Astro.request.formData();
+    const password = data.get("password");
+
+    // Read the secret key from Vercel/Local Environment Variables
+    const CORRECT_PASSWORD = import.meta.env.ADMIN_PASSWORD;
+
+    if (password === CORRECT_PASSWORD) {
+      // Success: Redirect to the Admin Dashboard
+      return Astro.redirect('/admin/dashboard');
+    } else {
+      errorMessage = "ACCESS DENIED: INVALID KEY";
+    }
+  } catch (error) {
+    errorMessage = "SYSTEM ERROR: FAILED TO INITIALIZE";
+  }
+}
+---
+
+<Layout title="TERMINAL ACCESS | SRFL">
+  <div class="login-wrapper">
+    <form method="POST" class="login-card">
+      <h1 class="title">ADMIN TERMINAL</h1>
+      
+      <div class="input-box">
+        <label>ACCESS IDENTIFICATION</label>
+        <input 
+          type="password" 
+          name="password" 
+          required 
+          placeholder="••••••••" 
+          autofocus
+        />
+      </div>
+
+      {errorMessage && <p class="error">{errorMessage}</p>}
+
+      <button type="submit">INITIALIZE SESSION</button>
+      
+      <div class="security-note">
+        ENCRYPTED CHANNEL - AUTHORIZED PERSONNEL ONLY
+      </div>
+    </form>
+  </div>
+</Layout>
+
+<style>
+    /* 针对登录页所有元素的暴力清空：强制隐藏系统光标 */
+    .login-wrapper, 
+    .login-wrapper *, 
+    .login-card, 
+    .login-card * {
+        cursor: none !important;
+    }
+
+    /* 允许文本可以被选中，但光标依然不可见 */
+    .title, label, .security-note, p {
+        cursor: none !important;
+    }
+    input, button {
+        cursor: none !important;
+    }
+    .login-wrapper {
+        height: 80vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding-top: 70px;
+    }
+
+    .login-card {
+        background: rgba(13, 14, 18, 0.9);
+        backdrop-filter: blur(15px);
+        padding: 3rem;
+        border: 1px solid rgba(237, 186, 58, 0.3);
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        text-align: center;
+    }
+
+    .title {
+        color: #edba3a; /* Your Theme Gold */
+        font-size: 1.4rem;
+        font-weight: 800;
+        letter-spacing: 4px;
+        margin-bottom: 2.5rem;
+        text-transform: uppercase;
+    }
+
+    .input-box {
+        text-align: left;
+        margin-bottom: 2rem;
+    }
+
+    .input-box label {
+        display: block;
+        color: #666;
+        font-size: 0.7rem;
+        letter-spacing: 2px;
+        margin-bottom: 10px;
+    }
+
+    .input-box input {
+        width: 100%;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #edba3a;
+        font-family: 'Courier New', monospace;
+        font-size: 1.1rem;
+        outline: none;
+        transition: all 0.3s ease;
+        caret-color: #edba3a;
+    }
+
+    .input-box input:focus {
+        border-color: #edba3a;
+        background: rgba(237, 186, 58, 0.05);
+    }
+
+    button {
+        width: 100%;
+        padding: 15px;
+        background: #edba3a;
+        border: none;
+        color: #000;
+        font-weight: 900;
+        font-size: 0.9rem;
+        letter-spacing: 1px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+    }
+
+    button:hover {
+        background: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(237, 186, 58, 0.3);
+    }
+
+    .error {
+        color: #ff4444;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-bottom: 1.5rem;
+        letter-spacing: 1px;
+        animation: blink 2s infinite;
+    }
+
+    .security-note {
+        margin-top: 2rem;
+        font-size: 0.6rem;
+        color: #444;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    @keyframes blink {
+        50% { opacity: 0.5; }
+    }
+</style>

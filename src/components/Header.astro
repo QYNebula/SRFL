@@ -3,10 +3,10 @@
 // 接收当前语言的参数，方便以后切换
 const { currentLang = 'en' } = Astro.props;
 
-// 导航链接配置
+// 导航链接配置：已移除 Staff，保留 Home, About us, SQB
 const navItems = [
   { name: 'Home', href: '/en/' },
-  { name: 'Staff', href: '/en/staff/' },
+  { name: 'About us', href: '/en/about/' },
   { name: 'SQB', href: '/en/sqb/' },
 ];
 ---
@@ -24,11 +24,15 @@ const navItems = [
       ))}
     </nav>
 
-    <div class="lang-selector">
-      <select id="langSelect">
-        <option value="/en/">English</option>
-        <option value="/">Français</option>
-      </select>
+    <div class="right-section">
+      <div class="lang-selector">
+        <select id="langSelect">
+          <option value="/en/">English</option>
+          <option value="/">Français</option>
+        </select>
+      </div>
+      
+      <a href="/login" class="admin-link">Admins</a>
     </div>
   </div>
 </header>
@@ -59,6 +63,7 @@ const navItems = [
     gap: 12px;
     text-decoration: none;
     color: white;
+    z-index: 1001; /* 确保不被绝对定位覆盖 */
   }
 
   .nav-logo {
@@ -76,7 +81,7 @@ const navItems = [
   .nav-links {
     display: flex;
     gap: 5rem;
-    position:absolute;
+    position: absolute;
     left: 50%;
     transform: translateX(-50%);
   }
@@ -84,12 +89,20 @@ const navItems = [
   .nav-links a {
     text-decoration: none;
     color: #ccc;
-    font-size:  1.2rem;
+    font-size: 1.2rem;
     transition: color 0.2s;
   }
 
   .nav-links a:hover {
     color: #edba3a;
+  }
+
+  /* 右侧容器：横向排列 */
+  .right-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 1001;
   }
 
   .lang-selector select {
@@ -98,6 +111,22 @@ const navItems = [
     border: 1px solid #444;
     padding: 4px 8px;
     border-radius: 4px;
+    cursor: none !important; /* 维持你的自定义鼠标逻辑 */
+  }
+
+  /* Admin 链接样式 */
+  .admin-link {
+    text-decoration: none;
+    color: #edba3a; /* 主题黄色 */
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+
+  .admin-link:hover {
+    opacity: 1;
+    text-decoration: underline;
   }
 </style>
 
