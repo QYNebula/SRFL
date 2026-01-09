@@ -14,19 +14,37 @@ import Header from '../components/Header.astro';
     <div class="social-links">
       <a href="https://discord.gg/8ttbRFVv68" target="_blank" class="social-btn discord">
         <div class="btn-content">
-			<span class="btn-text">Rejoins notre Discord</span>
-		</div>
-	  </a>
+          <span class="btn-text">Rejoins notre Discord</span>
+        </div>
+      </a>
       <a href="https://youtube.com/@srflresistantsfrancais?si=lNLwcAh4DV6iN1hh" target="_blank" class="social-btn youtube">
         <div class="btn-content">
-			<span class="btn-text">Chaîne YouTube</span>
-		</div>
-	  </a>
+          <span class="btn-text">Chaîne YouTube</span>
+        </div>
+      </a>
       <a href="https://www.warthunder.com/" target="_blank" class="social-btn official">
         <div class="btn-content">
-			<span class="btn-text">Site officiel de War Thunder</span>
-		</div>
+          <span class="btn-text">Site officiel de War Thunder</span>
+        </div>
       </a>
+    </div>
+
+    <!-- ✅ Mur de galerie (sous les boutons) -->
+    <div class="gallery-section">
+      <div class="gallery-header">
+        <h2 class="gallery-title">MUR DE GALERIE</h2>
+        <div class="gallery-subtitle">Moments sélectionnés — cliquez pour agrandir</div>
+      </div>
+
+      <!-- ✅ Convoyeur 3 lignes -->
+      <div id="galleryConveyor" class="conveyor" aria-live="polite"></div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox" aria-hidden="true">
+      <div class="lightbox-backdrop"></div>
+      <img id="lightboxImg" class="lightbox-img" alt="Aperçu de la galerie" />
+      <button id="lightboxClose" class="lightbox-close" type="button" aria-label="Fermer">×</button>
     </div>
   </section>
 </Layout>
@@ -166,3 +184,314 @@ import Header from '../components/Header.astro';
     100% { transform: rotate(360deg); }
   }
 </style>
+
+<style is:global>
+  .gallery-section {
+    width: min(1200px, 92vw);
+    margin-top: 4rem;
+  }
+
+  .gallery-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .gallery-title {
+    margin: 0;
+    font-size: 1.4rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: #edba3a;
+  }
+
+  .gallery-subtitle {
+    margin-top: 0.5rem;
+    color: #777;
+    letter-spacing: 2px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+  }
+
+  /* =========================
+     ✅ Convoyeur (3 lignes, 4 images par ligne en boucle)
+     ========================= */
+  .conveyor {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+  }
+
+  .conveyor-row {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.18);
+    padding: 0.45rem 0;
+  }
+
+  .conveyor-row::before,
+  .conveyor-row::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 70px;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .conveyor-row::before {
+    left: 0;
+    background: linear-gradient(90deg, rgba(19,21,26,1), rgba(19,21,26,0));
+  }
+  .conveyor-row::after {
+    right: 0;
+    background: linear-gradient(270deg, rgba(19,21,26,1), rgba(19,21,26,0));
+  }
+
+  .conveyor-track {
+    display: flex;
+    gap: 0.55rem;
+    width: max-content;
+    will-change: transform;
+  }
+
+  .scroll-left .conveyor-track { animation: scrollLeft var(--dur, 26s) linear infinite; }
+  .scroll-right .conveyor-track { animation: scrollRight var(--dur, 24s) linear infinite; }
+
+  .conveyor-row:hover .conveyor-track { animation-play-state: paused; }
+
+  @keyframes scrollLeft {
+    from { transform: translateX(0); }
+    to   { transform: translateX(calc(-1 * var(--loopW, 800px))); }
+  }
+  @keyframes scrollRight {
+    from { transform: translateX(calc(-1 * var(--loopW, 800px))); }
+    to   { transform: translateX(0); }
+  }
+
+  .conveyor-card {
+    width: 265px;
+    height: 165px;
+    flex: 0 0 auto;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.28);
+    position: relative;
+    cursor: none !important; /* conserver ton système de curseur */
+    transform: translateZ(0);
+  }
+
+  .conveyor-card img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    opacity: 0.9;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  .conveyor-card:hover img {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+
+  /* =========================
+     ✅ Lightbox : afficher le vrai curseur dans la lightbox
+     ========================= */
+  .lightbox,
+  .lightbox * {
+    cursor: auto !important;
+  }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    display: none;
+    z-index: 99999;
+  }
+
+  .lightbox.is-open { display: block; }
+
+  .lightbox-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+  }
+
+  .lightbox-img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(1200px, 92vw);
+    max-height: 85vh;
+    border: 1px solid rgba(237, 186, 58, 0.35);
+    box-shadow: 0 30px 90px rgba(0,0,0,0.55);
+    background: #000;
+  }
+
+  .lightbox-close {
+    position: absolute;
+    top: 18px;
+    right: 22px;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.35);
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .lightbox-close:hover {
+    border-color: rgba(237, 186, 58, 0.6);
+  }
+
+  html.is-lightbox-open .cursor-dot,
+  html.is-lightbox-open .cursor-outline {
+    display: none !important;
+  }
+</style>
+
+<script is:inline>
+  // ====== CONFIG ======
+  const ROWS = 3;
+  const COLS = 4;
+  const DISPLAY_COUNT = ROWS * COLS; // 12
+
+  // Vitesse par ligne (secondes) : 1 gauche, 2 droite, 3 gauche
+  const ROW_DUR = [26, 22, 28];
+
+  const wrap = document.getElementById('galleryConveyor');
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightboxImg');
+  const lightboxClose = document.getElementById('lightboxClose');
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function pickDisplay(urls, n) {
+    if (!urls || urls.length === 0) return [];
+    if (urls.length >= n) return shuffle(urls).slice(0, n);
+
+    const out = [];
+    let i = 0;
+    while (out.length < n) {
+      out.push(urls[i % urls.length]);
+      i++;
+    }
+    return out;
+  }
+
+  function openLightbox(src) {
+    if (!lightbox || !lightboxImg) return;
+    lightboxImg.src = src;
+    lightbox.classList.add('is-open');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.documentElement.classList.add('is-lightbox-open');
+  }
+
+  function closeLightbox() {
+    if (!lightbox || !lightboxImg) return;
+    lightbox.classList.remove('is-open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImg.src = '';
+    document.documentElement.classList.remove('is-lightbox-open');
+  }
+
+  if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
+  if (lightbox) {
+    lightbox.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.classList.contains('lightbox-backdrop')) closeLightbox();
+    });
+  }
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
+  async function fetchUrls() {
+    const res = await fetch('/api/gallery.json', { cache: 'no-store' });
+    const json = await res.json();
+    if (!json || !json.ok) return [];
+    return Array.isArray(json.urls) ? json.urls : [];
+  }
+
+  function chunk(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  function renderConveyor(urls) {
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    const rows = chunk(urls, COLS);
+
+    rows.forEach((rowUrls, idx) => {
+      const dirClass = (idx % 2 === 0) ? 'scroll-left' : 'scroll-right';
+
+      const row = document.createElement('div');
+      row.className = `conveyor-row ${dirClass}`;
+      row.style.setProperty('--dur', `${ROW_DUR[idx] || 26}s`);
+
+      const track = document.createElement('div');
+      track.className = 'conveyor-track';
+
+      const loop = rowUrls.concat(rowUrls); // duplication pour boucle infinie
+
+      loop.forEach((src) => {
+        const card = document.createElement('div');
+        card.className = 'conveyor-card';
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.loading = 'lazy';
+        img.alt = 'Image de la galerie SRFL';
+
+        card.appendChild(img);
+        card.addEventListener('click', () => openLightbox(src));
+        track.appendChild(card);
+      });
+
+      row.appendChild(track);
+      wrap.appendChild(row);
+
+      requestAnimationFrame(() => {
+        const cards = track.querySelectorAll('.conveyor-card');
+        let w = 0;
+        for (let i = 0; i < Math.min(COLS, cards.length); i++) {
+          w += cards[i].getBoundingClientRect().width;
+        }
+        const styles = window.getComputedStyle(track);
+        const gap = parseFloat(styles.getPropertyValue('gap')) || 0;
+        w += gap * COLS;
+        row.style.setProperty('--loopW', `${Math.ceil(w)}px`);
+      });
+    });
+  }
+
+  (async function initGalleryOnce() {
+    if (!wrap) return;
+
+    const allUrls = await fetchUrls();
+    const selection = pickDisplay(allUrls, DISPLAY_COUNT);
+    renderConveyor(selection);
+
+    window.addEventListener('resize', () => {
+      renderConveyor(selection);
+    });
+  })();
+</script>
