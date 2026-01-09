@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
-import { supabase } from '../../lib/supabase';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
 
 const session = Astro.cookies.get("admin_session");
 if (!session || session.value !== "verified") {
@@ -37,12 +37,12 @@ if (isPost) {
           const fileExt = (file.name.split('.').pop() || 'img').toLowerCase();
           const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
 
-          const { error: uploadError } = await supabase.storage.from('gallery').upload(fileName, file);
+          const { error: uploadError } = await supabaseAdmin.storage.from('gallery').upload(fileName, file);
           if (uploadError) throw uploadError;
 
           // 3) 写入数据库
-          const { data: { publicUrl } } = supabase.storage.from('gallery').getPublicUrl(fileName);
-          const { error: insertError } = await supabase
+          const { data: { publicUrl } } = supabaseAdmin.storage.from('gallery').getPublicUrl(fileName);
+          const { error: insertError } = await supabaseAdmin
             .from('homepage_gallery')
             .insert([{ url: publicUrl, storage_path: fileName }]);
 
@@ -51,7 +51,7 @@ if (isPost) {
           // 4) 末尾淘汰制：超过 30 张就删除最老的
           const LIMIT = 30;
 
-          const { data: allRows, error: listError } = await supabase
+          const { data: allRows, error: listError } = await supabaseAdmin
             .from('homepage_gallery')
             .select('id, storage_path, created_at')
             .order('created_at', { ascending: true });
@@ -66,12 +66,12 @@ if (isPost) {
             const ids = toRemove.map(r => r.id).filter(Boolean);
 
             if (paths.length > 0) {
-              const { error: rmError } = await supabase.storage.from('gallery').remove(paths);
+              const { error: rmError } = await supabaseAdmin.storage.from('gallery').remove(paths);
               if (rmError) throw rmError;
             }
 
             if (ids.length > 0) {
-              const { error: delError } = await supabase.from('homepage_gallery').delete().in('id', ids);
+              const { error: delError } = await supabaseAdmin.from('homepage_gallery').delete().in('id', ids);
               if (delError) throw delError;
             }
           }
@@ -85,11 +85,16 @@ if (isPost) {
       const id = formData.get('id')?.toString();
       const path = formData.get('path')?.toString();
       if (id && path) {
-        await supabase.storage.from('gallery').remove([path]);
-        await supabase.from('homepage_gallery').delete().eq('id', id);
+        const { error: rmError } = await supabaseAdmin.storage.from('gallery').remove([path]);
+        if (rmError) throw rmError;
+
+        const { error: delError } = await supabaseAdmin.from('homepage_gallery').delete().eq('id', id);
+        if (delError) throw delError;
+
         saveStatus = "SUCCESS : IMAGE SUPPRIMÉE";
       }
     }
+
     // --- 01 原有 About Us 逻辑 ---
     else {
       const titles = formData.getAll('about_titles[]');
@@ -106,8 +111,8 @@ if (isPost) {
         .filter(row => row.title !== "" && row.content !== "");
 
       if (newRows.length > 0) {
-        await supabase.from('about_us').delete().neq('title', 'SYSTEM_RESERVED_PROTECT');
-        const { error } = await supabase.from('about_us').insert(newRows);
+        await supabaseAdmin.from('about_us').delete().neq('title', 'SYSTEM_RESERVED_PROTECT');
+        const { error } = await supabaseAdmin.from('about_us').insert(newRows);
         if (error) throw error;
         saveStatus = "SUCCESS : BASE DE DONNÉES SYNCHRONISÉE";
       }
@@ -118,10 +123,10 @@ if (isPost) {
   }
 }
 
-// 并行读取（不改变任何展示/逻辑）
+// 并行读取（不改变任何展示/逻辑）——已改为 supabaseAdmin
 const [{ data: aboutSections }, { data: galleryImages }] = await Promise.all([
-  supabase.from('about_us').select('*').order('sort_order', { ascending: true }),
-  supabase.from('homepage_gallery').select('*').order('created_at', { ascending: false })
+  supabaseAdmin.from('about_us').select('*').order('sort_order', { ascending: true }),
+  supabaseAdmin.from('homepage_gallery').select('*').order('created_at', { ascending: false })
 ]);
 ---
 
