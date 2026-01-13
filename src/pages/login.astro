@@ -3,62 +3,58 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
+import { createClient } from '@supabase/supabase-js';
+
 
 // Backend Logic: Handle Login Validation
 let errorMessage = "";
+// Step 1: /login?discord=1 -> redirect to Supabase Discord OAuth
+const discordFlag = Astro.url.searchParams.get('discord');
 
-if (Astro.request.method === "POST") {
-  try {
-    const data = await Astro.request.formData();
-    const password = data.get("password");
+if (discordFlag === '1') {
+  const SUPABASE_URL = import.meta.env.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.SUPABASE_ANON_KEY;
 
-    // Read the secret key from Vercel/Local Environment Variables
-    const CORRECT_PASSWORD = import.meta.env.ADMIN_PASSWORD;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    errorMessage = "ERREUR SYSTÈME : SUPABASE ENV MANQUANTE";
+  } else {
+    const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
 
-    if (password === CORRECT_PASSWORD) {
-    // Success: Redirect to the Admin Dashboard
-        Astro.cookies.set("admin_session", "verified", { 
-            path: "/", 
-            httpOnly: true,
-            sameSite: "strict" // 增加安全性，防止跨站攻击
-        });
-        return Astro.redirect('/admin/dashboard');
+    const redirectTo = `${Astro.url.origin}/login`; // 回跳仍回 login，下一步再处理 code
+    const { data, error } = await anon.auth.signInWithOAuth({
+      provider: 'discord',
+      options: { redirectTo }
+    });
+
+    if (error || !data?.url) {
+      errorMessage = "ERREUR SYSTÈME : ÉCHEC OAUTH DISCORD";
     } else {
-      errorMessage = "ACCÈS REFUSÉ : CLÉ INVALIDE";
+      return Astro.redirect(data.url);
     }
-  } catch (error) {
-    errorMessage = "ERREUR SYSTÈME : ÉCHEC D'INITIALISATION";
   }
 }
+
 ---
 
 <Layout title="TERMINAL ACCESS | SRFL">
   <div class="login-wrapper">
-    <form method="POST" class="login-card">
+    <div class="login-card">
       <h1 class="title">TERMINAL D'ADMINISTRATION</h1>
-      
-      <div class="input-box">
-        <label>IDENTIFICATION D'ACCÈS</label>
-        <input 
-          type="password" 
-          name="password" 
-          required 
-          placeholder="••••••••" 
-          autofocus
-        />
-      </div>
-
       {errorMessage && <p class="error">{errorMessage}</p>}
-
-      <button type="submit">CONNEXION</button>
-      
+      <form method="GET" style="margin-top: 0;">
+        <input type="hidden" name="discord" value="1" />
+        <button type="submit">CONNEXION VIA DISCORD</button>
+      </form>
       <div class="security-note">
         CANAL CHIFFRÉ - RÉSERVÉ AU PERSONNEL AUTORISÉ
       </br>ENCRYPTED CHANNEL - AUTHORIZED PERSONNEL ONLY
       </div>
-    </form>
+    </div>
   </div>
 </Layout>
+
 
 <style>
     /* 针对登录页所有元素的暴力清空：强制隐藏系统光标 */
@@ -176,3 +172,43 @@ if (Astro.request.method === "POST") {
         50% { opacity: 0.5; }
     }
 </style>
+
+<script is:inline>
+  (async function () {
+    console.log('[discord cb] script running, hash =', window.location.hash);
+    // 只处理 Discord 回跳：hash 里带 access_token
+    const hash = window.location.hash || '';
+    if (!hash.includes('access_token=')) return;
+
+    const params = new URLSearchParams(hash.slice(1));
+    const access_token = params.get('access_token');
+    console.log(
+    '[discord cb] access_token?',
+    !!access_token,
+    access_token ? access_token.slice(0, 12) + '...' : null
+    );
+
+    if (!access_token) return;
+
+    // 发给后端验证 + set cookie
+    const res = await fetch('/api/discord-verify', {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${access_token}`, 
+      },
+      body: JSON.stringify({ access_token })
+    });
+
+    if (res.ok) {
+      // 清理 hash（可选，但推荐，避免刷新重复跑）
+      history.replaceState(null, '', '/login');
+      window.location.href = '/admin/dashboard';
+    } else {
+      // 如果失败，你不想改 UI，我们先让它保持在登录页；你可以打开控制台看原因
+      const msg = await res.text().catch(() => '');
+      console.error('discord verify failed:', res.status, msg);
+      history.replaceState(null, '', '/login');
+    }
+  })();
+</script>
