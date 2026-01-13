@@ -47,6 +47,9 @@ if (discordFlag === '1') {
         <input type="hidden" name="discord" value="1" />
         <button type="submit">CONNEXION VIA DISCORD</button>
       </form>
+      <p id="redirect-hint" class="redirect-hint" hidden>
+        Redirection en cours…
+      </p>
       <div class="security-note">
         CANAL CHIFFRÉ - RÉSERVÉ AU PERSONNEL AUTORISÉ
       </br>ENCRYPTED CHANNEL - AUTHORIZED PERSONNEL ONLY
@@ -171,22 +174,38 @@ if (discordFlag === '1') {
     @keyframes blink {
         50% { opacity: 0.5; }
     }
+
+    .redirect-hint {
+        margin-top: 0.6rem;
+        font-size: 0.7rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #edba3a;
+        animation: pulse 1.4s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+        0%   { opacity: 0.4; }
+        50%  { opacity: 1; }
+        100% { opacity: 0.4; }
+    }
 </style>
 
 <script is:inline>
   (async function () {
-    console.log('[discord cb] script running, hash =', window.location.hash);
     // 只处理 Discord 回跳：hash 里带 access_token
     const hash = window.location.hash || '';
     if (!hash.includes('access_token=')) return;
+    // ✅ 显示 Redirecting 提示 & 禁用按钮
+    const hint = document.getElementById('redirect-hint');
+    const btn = document.getElementById('discord-login-btn');
+
+    if (hint) hint.hidden = false;
+    if (btn) btn.disabled = true;
+
 
     const params = new URLSearchParams(hash.slice(1));
     const access_token = params.get('access_token');
-    console.log(
-    '[discord cb] access_token?',
-    !!access_token,
-    access_token ? access_token.slice(0, 12) + '...' : null
-    );
 
     if (!access_token) return;
 
