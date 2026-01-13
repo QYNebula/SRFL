@@ -188,8 +188,26 @@ const [{ data: aboutSections }, { data: galleryImages }] = await Promise.all([
 
     <section class="config-block">
       <h2 class="block-title" style="margin-bottom: 2.5rem;">02 // SQB</h2>
-      <div class="lock-overlay">AUCUN CHAMP DE DONNÉES DÉFINI. SYNC DB EN ATTENTE.</div>
+
+      <div class="sqb-calendar-shell">
+        <div class="sqb-cal-header">
+          <button type="button" class="sqb-cal-nav" id="sqb-prev">◀</button>
+          <div class="sqb-cal-title" id="sqb-title">CALENDRIER</div>
+          <button type="button" class="sqb-cal-nav" id="sqb-next">▶</button>
+        </div>
+
+        <div class="sqb-cal-weekdays">
+          <div>LUN</div><div>MAR</div><div>MER</div><div>JEU</div><div>VEN</div><div>SAM</div><div>DIM</div>
+        </div>
+
+        <div class="sqb-cal-grid" id="sqb-grid"></div>
+
+        <div class="sqb-cal-hint">
+          CLIQUEZ SUR UN JOUR POUR CONFIGURER LA SESSION.
+        </div>
+      </div>
     </section>
+
 
     <section class="config-block">
       <!-- 新的更高一级标题 -->
@@ -417,6 +435,119 @@ const [{ data: aboutSections }, { data: galleryImages }] = await Promise.all([
     // 兜底：即使绑定失败，也尝试修复样式（不影响正常情况）
     selfHealStyles();
   }
+
+  // =========================
+  // SQB Calendar (UI only)
+  // =========================
+  (function initSQBCalendar() {
+    const grid = document.getElementById('sqb-grid');
+    const title = document.getElementById('sqb-title');
+    const btnPrev = document.getElementById('sqb-prev');
+    const btnNext = document.getElementById('sqb-next');
+
+    if (!grid || !title || !btnPrev || !btnNext) return;
+
+    // 本地时区显示即可
+    let view = new Date();
+    view.setDate(1);
+
+    // 先做 UI：假数据（之后接 Supabase 时替换这里）
+    // key: YYYY-MM-DD -> count
+    const fakeCounts = {
+      // '2026-01-11': 2,
+      // '2026-01-13': 1,
+    };
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function ymd(d) {
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
+    function render() {
+      grid.innerHTML = '';
+
+      const year = view.getFullYear();
+      const month = view.getMonth(); // 0-11
+
+      // 标题（法语月份）
+      const monthNames = [
+        'JANVIER','FÉVRIER','MARS','AVRIL','MAI','JUIN',
+        'JUILLET','AOÛT','SEPTEMBRE','OCTOBRE','NOVEMBRE','DÉCEMBRE'
+      ];
+      title.textContent = `${monthNames[month]} ${year}`;
+
+      const first = new Date(year, month, 1);
+
+      // Monday-based index: 0..6 (Mon..Sun)
+      const jsDay = first.getDay(); // 0..6 (Sun..Sat)
+      const startOffset = (jsDay + 6) % 7;
+
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+      // 今天标记
+      const today = new Date();
+      const todayKey = ymd(today);
+
+      for (let i = 0; i < totalCells; i++) {
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'sqb-day';
+
+        const dayNum = i - startOffset + 1;
+
+        if (dayNum < 1 || dayNum > daysInMonth) {
+          cell.classList.add('is-empty');
+          cell.disabled = true;
+          grid.appendChild(cell);
+          continue;
+        }
+
+        const d = new Date(year, month, dayNum);
+        const key = ymd(d);
+
+        cell.dataset.date = key;
+
+        // 数字
+        const n = document.createElement('span');
+        n.className = 'sqb-day-num';
+        n.textContent = String(dayNum);
+        cell.appendChild(n);
+
+        // 红点数字（先假数据，后面接 DB）
+        const count = fakeCounts[key] || 0;
+        if (count > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'sqb-badge';
+          badge.textContent = String(count);
+          cell.appendChild(badge);
+        }
+
+        // today 高亮
+        if (key === todayKey) cell.classList.add('is-today');
+
+        // 点击跳转到新页面（你后面做配置页）
+        cell.addEventListener('click', () => {
+          window.location.href = `/admin/sqb/${key}`;
+        });
+
+        grid.appendChild(cell);
+      }
+    }
+
+    btnPrev.addEventListener('click', () => {
+      view = new Date(view.getFullYear(), view.getMonth() - 1, 1);
+      render();
+    });
+
+    btnNext.addEventListener('click', () => {
+      view = new Date(view.getFullYear(), view.getMonth() + 1, 1);
+      render();
+    });
+
+    render();
+  })();
+
 </script>
 
 <style>
@@ -451,4 +582,185 @@ const [{ data: aboutSections }, { data: galleryImages }] = await Promise.all([
   .mini-close-btn:hover { background: #fff; color: #ff4444; }
 
   @keyframes blink { 50% { opacity: 0.5; } }
+
+    /* =========================
+     02 // SQB Calendar styles
+     ========================= */
+  .sqb-calendar-shell {
+    border: 1px solid #222;
+    padding: 1.5rem;
+    background: rgba(13, 14, 18, 0.6);
+    backdrop-filter: blur(10px);
+  }
+
+  .sqb-cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #222;
+    padding-bottom: 12px;
+  }
+
+  .sqb-cal-title {
+    color: #edba3a;
+    font-family: monospace;
+    font-weight: 900;
+    letter-spacing: 2px;
+    font-size: 0.95rem;
+    text-align: center;
+    flex: 1;
+  }
+
+  .sqb-cal-nav {
+    width: 44px;
+    height: 36px;
+    border: 1px solid rgba(237, 186, 58, 0.35);
+    background: transparent;
+    color: #edba3a;
+    cursor: pointer;
+    font-family: monospace;
+    font-weight: 900;
+    transition: 0.2s;
+  }
+  .sqb-cal-nav:hover {
+    background: rgba(237, 186, 58, 0.12);
+  }
+
+  .sqb-cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    margin-bottom: 10px;
+    opacity: 0.7;
+    font-family: monospace;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    color: #aaa;
+  }
+  .sqb-cal-weekdays > div {
+    text-align: center;
+    padding: 6px 0;
+    border-bottom: 1px dashed #222;
+  }
+
+  .sqb-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+  }
+
+  .sqb-day {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    height: 62px;
+    color: #edba3a;
+    font-family: monospace;
+    cursor: pointer;
+    transition: 0.2s;
+    text-align: left;
+    padding: 10px;
+  }
+
+  .sqb-day:hover {
+    border-color: rgba(237, 186, 58, 0.35);
+    background: rgba(237, 186, 58, 0.06);
+  }
+
+  .sqb-day.is-empty {
+    opacity: 0.15;
+    cursor: default;
+  }
+
+  .sqb-day.is-today {
+    border-color: #edba3a;
+    box-shadow: 0 0 0 1px rgba(237, 186, 58, 0.25) inset;
+  }
+
+  .sqb-day-num {
+    font-weight: 900;
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+  }
+
+  .sqb-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #ff4444;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-family: monospace;
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.35);
+  }
+
+  .sqb-cal-hint {
+    margin-top: 1rem;
+    color: #444;
+    font-family: monospace;
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: center;
+    padding-top: 12px;
+    border-top: 1px solid #222;
+  }
+
+
+</style>
+
+<style is:global>
+  /* SQB buttons: force theme style */
+  .sqb-calendar-shell .sqb-day,
+  .sqb-calendar-shell .sqb-cal-nav {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: #edba3a !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    font-family: monospace !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  .sqb-calendar-shell .sqb-day {
+    display: block !important;
+    text-align: left !important;
+    padding: 10px !important;
+    height: 62px !important;
+  }
+
+  .sqb-calendar-shell .sqb-day.is-empty {
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  }
+
+  .sqb-calendar-shell .sqb-day:hover {
+    border-color: rgba(237, 186, 58, 0.35) !important;
+    background: rgba(237, 186, 58, 0.06) !important;
+  }
+
+  .sqb-calendar-shell .sqb-day.is-empty:hover{
+    background: transparent !important;
+    border-color: rgba(255,255,255,0.04) !important;
+  }
+
+  .sqb-calendar-shell .sqb-day.is-empty{
+    pointer-events: none !important; /* 最干净：直接不让 hover/click 命中 */
+  }
+
+  .sqb-calendar-shell .sqb-cal-nav:hover {
+    background: rgba(237, 186, 58, 0.12) !important;
+  }
+
 </style>

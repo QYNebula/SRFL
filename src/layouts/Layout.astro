@@ -221,7 +221,8 @@ const { title, lang = 'fr' } = Astro.props;
 								target.closest('.menu-item') ||
 								target.closest('input') ||
 								target.closest('textarea') ||
-								target.classList.contains('social-btn');
+								target.classList.contains('social-btn') || 
+                                target.closest('.gallery-card');
 
             if (isClickable) {
                 document.documentElement.style.setProperty('--dot-color', '#00ff00');
